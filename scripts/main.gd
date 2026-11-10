@@ -14,7 +14,11 @@ const LoopClock = preload("res://scripts/timeline/loop_clock.gd")
 const Player = preload("res://scripts/player/player_controller.gd")
 const WaveManager = preload("res://scripts/waves/wave_manager.gd")
 const PlannerUI = preload("res://scripts/ui/planner_ui.gd")
+const OverlayUI = preload("res://scripts/ui/overlay_ui.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
+
+## Sobrevive a reload_current_scene: depois de "jogar de novo" não mostra o título outra vez.
+static var skip_title := false
 
 const ARENA_START := 300.0
 const ARENA_MIN := 150.0
@@ -31,6 +35,7 @@ var clock: Node
 var player: Node2D
 var waves: Node2D
 var planner: CanvasLayer
+var overlay: CanvasLayer
 var hud: Label
 
 var _running := false
@@ -76,7 +81,27 @@ func _ready() -> void:
 	hud_layer.add_child(hud)
 	add_child(hud_layer)
 
+	overlay = OverlayUI.new()
+	add_child(overlay)  # _ready do overlay roda aqui; por último, fica por cima de tudo
+	overlay.confirmed.connect(_on_overlay_confirmed)
+	if skip_title:
+		overlay.hide_overlay()
+	else:
+		overlay.show_title()
+
 	_rebake(true)
+
+
+func _on_overlay_confirmed() -> void:
+	if _over:
+		_restart()
+	else:
+		overlay.hide_overlay()
+
+
+func _restart() -> void:
+	skip_title = true
+	get_tree().reload_current_scene()
 
 
 ## Coreografia inicial de exemplo.
@@ -126,6 +151,7 @@ func _on_player_died() -> void:
 	_over = true
 	clock.running = false
 	waves.stop()
+	overlay.show_game_over(waves.wave)
 
 
 func _physics_process(delta: float) -> void:
@@ -154,7 +180,7 @@ func _escalate() -> void:
 
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("restart"):
-		get_tree().reload_current_scene()
+		_restart()
 		return
 	var status := "Planeje e pressione Executar (Enter)" if not _running else \
 		"Loop %d  %.1fs  |  Fecha em %.0fs" % [clock.loop_count, plan.duration_sec(),
@@ -163,7 +189,7 @@ func _process(_delta: float) -> void:
 		status, player.health, waves.wave, waves.alive,
 		"pronto" if _pulse_cd <= 0.0 else "%.0fs" % _pulse_cd]
 	if _over:
-		hud.text += "\nFIM DE JOGO — R reinicia"
+		hud.text += "\nFIM DE JOGO"
 
 
 func _draw() -> void:

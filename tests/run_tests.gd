@@ -13,6 +13,7 @@ const Combat = preload("res://scripts/combat/combat.gd")
 const WaveManager = preload("res://scripts/waves/wave_manager.gd")
 const Enemy = preload("res://scripts/waves/enemy.gd")
 const PlannerUI = preload("res://scripts/ui/planner_ui.gd")
+const OverlayUI = preload("res://scripts/ui/overlay_ui.gd")
 
 var _failures := 0
 var _checks := 0
@@ -296,6 +297,62 @@ func test_planner_assigns_actions_and_tracks_slots() -> void:
 	check(ui._slot_buttons.size() == 8, "refresh cria botões para os novos slots")
 	root.remove_child(ui)
 	ui.free()
+
+
+# --- Overlay (título / fim de jogo) ----------------------------------------
+
+func test_overlay_title_confirms_on_click_without_keyboard() -> void:
+	var ui := OverlayUI.new()
+	root.add_child(ui)
+	var confirmed := [0]
+	ui.confirmed.connect(func(): confirmed[0] += 1)
+	check(not ui.is_open() and not ui.confirm(), "fechado não confirma")
+	ui.show_title()
+	check(ui.is_open(), "título aparece")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	ui._on_gui_input(click)  # toque/clique em qualquer ponto
+	check(confirmed[0] == 1, "clique confirma o título")
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	ui._on_gui_input(release)
+	check(confirmed[0] == 1, "soltar o botão não confirma de novo")
+	ui.hide_overlay()
+	check(not ui.is_open(), "esconde")
+	root.remove_child(ui)
+	ui.free()
+
+
+func test_overlay_game_over_has_lock_against_stray_taps() -> void:
+	var ui := OverlayUI.new()
+	root.add_child(ui)
+	var confirmed := [0]
+	ui.confirmed.connect(func(): confirmed[0] += 1)
+	ui.show_game_over(7)
+	check(ui._sub.text.contains("7"), "mostra a onda alcançada")
+	check(ui.lock_ms == OverlayUI.GAME_OVER_LOCK_MS, "trava ativa no fim de jogo")
+	check(not ui.confirm() and confirmed[0] == 0, "toque imediato é ignorado")
+	ui.lock_ms = 0  # simula o tempo passado
+	check(ui.confirm() and confirmed[0] == 1, "depois da trava, confirma")
+	root.remove_child(ui)
+	ui.free()
+
+
+func test_main_scene_title_then_game_over_flow() -> void:
+	var main_script: GDScript = load("res://scripts/main.gd")
+	main_script.skip_title = false
+	var main: Node2D = (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	root.add_child(main)
+	check(main.overlay.is_open(), "partida abre com a tela de título")
+	check(main.overlay.confirm() and not main.overlay.is_open(), "toque fecha o título")
+	main.player.take_damage(1000)
+	check(main.overlay.is_open() and main._over, "morte abre o fim de jogo")
+	main_script.skip_title = true
+	root.remove_child(main)
+	main.free()
+	main_script.skip_title = false
 
 
 # --- Vazamentos de memória ------------------------------------------------
