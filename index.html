@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echo Blade: O Eco do Último Golpe - Web Prototype</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Cyber-Zen UI icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+        
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #050508;
+            color: #e2e8f0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* Custom Cyberpunk Glow & Glassmorphism Effects */
+        .glass-panel {
+            background: rgba(13, 17, 23, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0, 243, 255, 0.05);
+        }
+
+        .glass-panel-gold {
+            background: rgba(20, 16, 10, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(255, 215, 0, 0.08);
+        }
+
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+        }
+
+        .glow-magenta {
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
+        }
+
+        .glow-gold {
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+        }
+
+        .text-glow-cyan {
+            text-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
+        }
+
+        .text-glow-magenta {
+            text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
+        }
+
+        /* Slot Pulse Animation */
+        @keyframes activeSlotPulse {
+            0% { border-color: rgba(0, 243, 255, 1); box-shadow: 0 0 20px rgba(0, 243, 255, 0.8); }
+            50% { border-color: rgba(255, 0, 85, 1); box-shadow: 0 0 25px rgba(255, 0, 85, 0.9); }
+            100% { border-color: rgba(0, 243, 255, 1); box-shadow: 0 0 20px rgba(0, 243, 255, 0.8); }
+        }
+
+        .slot-active {
+            animation: activeSlotPulse 1.2s infinite;
+            transform: scale(1.05);
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 243, 255, 0.3);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col justify-between items-center relative p-2 md:p-4 select-none">
+
+    <!-- Game Background Canvas -->
+    <div class="absolute inset-0 z-0 flex items-center justify-center">
+        <canvas id="gameCanvas" class="block max-w-full max-h-full rounded-2xl shadow-2xl"></canvas>
+    </div>
+
+    <!-- HUD Overlay Top -->
+    <header class="relative z-10 w-full max-w-5xl flex justify-between items-center glass-panel px-4 py-2 rounded-xl border-t border-cyan-500/30">
+        <!-- Health & Armor -->
+        <div class="flex items-center space-x-4">
+            <div class="flex flex-col">
+                <span class="text-xs uppercase tracking-widest text-cyan-400 font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-heart-pulse"></i> Sincronia Vital (HP)
+                </span>
+                <div class="w-36 md:w-48 h-3.5 bg-gray-950 rounded-full overflow-hidden border border-cyan-500/30 p-0.5 mt-1">
+                    <div id="hpBar" class="h-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 rounded-full transition-all duration-300 w-full shadow-[0_0_10px_#00f3ff]"></div>
+                </div>
+            </div>
+            
+            <div class="hidden sm:flex flex-col">
+                <span class="text-xs uppercase tracking-widest text-pink-500 font-bold">Modo Loop</span>
+                <span id="loopStatus" class="text-sm font-orbitron font-bold text-pink-400">EXECUTANDO</span>
+            </div>
+        </div>
+
+        <!-- Title / Stats Center -->
+        <div class="text-center">
+            <h1 class="text-xl md:text-2xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-white to-pink-500 tracking-wider">
+                ECHO BLADE
+            </h1>
+            <div class="flex items-center justify-center space-x-3 text-xs md:text-sm font-orbitron text-gray-300">
+                <span>ONDA: <strong id="waveText" class="text-cyan-400 text-base">1</strong></span>
+                <span class="text-gray-600">|</span>
+                <span>INIMIGOS: <strong id="enemiesText" class="text-pink-400">0</strong></span>
+            </div>
+        </div>
+
+        <!-- Score & Multiplier -->
+        <div class="text-right flex flex-col items-end">
+            <span class="text-xs uppercase tracking-widest text-yellow-400 font-bold flex items-center gap-1">
+                <i class="fa-solid fa-trophy"></i> Pontuação
+            </span>
+            <span id="scoreText" class="text-xl md:text-2xl font-orbitron font-bold text-yellow-300 text-glow-gold">0</span>
+        </div>
+    </header>
+
+    <!-- Center Interactive Overlay / Modal Prompts -->
+    <!-- Upgrade Selection Modal -->
+    <div id="upgradeModal" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+        <div class="glass-panel-gold max-w-xl w-full p-6 rounded-2xl text-center border-yellow-500/40 relative">
+            <h2 class="text-2xl md:text-3xl font-orbitron font-black text-yellow-400 tracking-wider mb-2 text-glow-gold">
+                <i class="fa-solid fa-bolt mr-2"></i>SOBRECARGA DE ECO DETECTADA
+            </h2>
+            <p class="text-gray-300 text-sm mb-6">Escolha uma sintonização temporal para aprimorar o combo do próximo ciclo:</p>
+            
+            <div id="upgradeCardsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <!-- Upgrade options injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverModal" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-md w-full p-8 rounded-2xl text-center border-pink-500/50 shadow-[0_0_50px_rgba(255,0,85,0.3)]">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-pink-500/10 border border-pink-500 flex items-center justify-center text-pink-500 text-2xl animate-pulse">
+                <i class="fa-solid fa-skull"></i>
+            </div>
+            <h2 class="text-3xl font-orbitron font-black text-pink-500 tracking-wider mb-1 text-glow-magenta">LOOP CORROMPIDO</h2>
+            <p class="text-gray-400 text-xs mb-6 uppercase tracking-widest">Sua sequência de combate foi interrompida</p>
+            
+            <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-800 mb-6 space-y-2 text-left font-orbitron text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Pontuação Total:</span>
+                    <span id="finalScore" class="text-yellow-400 font-bold">0</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Ondas Sobrevividas:</span>
+                    <span id="finalWave" class="text-cyan-400 font-bold">0</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Inimigos Eliminados:</span>
+                    <span id="finalKills" class="text-pink-400 font-bold">0</span>
+                </div>
+            </div>
+
+            <button id="btnRestart" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-cyan-500 text-white font-orbitron font-bold tracking-wider hover:opacity-90 transition-all duration-300 shadow-[0_0_20px_rgba(0,243,255,0.4)] active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-rotate-right"></i> REINICIAR LOOP
+            </button>
+        </div>
+    </div>
+
+    <!-- Bottom Controls & Timeline Bar -->
+    <footer class="relative z-10 w-full max-w-5xl flex flex-col items-center gap-2 mb-1">
+        
+        <!-- Timeline Navigation & Execution Container -->
+        <div class="w-full glass-panel p-3 rounded-2xl flex flex-col gap-3">
+            
+            <div class="flex justify-between items-center px-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs uppercase font-bold tracking-widest text-cyan-400 font-orbitron flex items-center gap-1.5">
+                        <i class="fa-solid fa-timeline"></i> Programação da Timeline (Loop de 3s)
+                    </span>
+                    <span class="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded-full hidden sm:inline">
+                        Arraste ou clique para trocar as ações
+                    </span>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <button id="btnToggleLoop" class="px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-gray-950 rounded-lg font-orbitron font-black text-xs tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-[0_0_12px_rgba(0,243,255,0.4)] flex items-center gap-1.5">
+                        <i id="toggleLoopIcon" class="fa-solid fa-pause"></i>
+                        <span id="toggleLoopText">PAUSAR LOOP</span>
+                    </button>
+                    <button id="btnClearTimeline" class="px-3 py-1.5 bg-gray-900 border border-gray-700 text-gray-300 rounded-lg font-orbitron text-xs hover:border-red-500 hover:text-red-400 transition-all">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action Slots Bar (6 Slots = 0.5s each) -->
+            <div id="timelineSlots" class="grid grid-cols-6 gap-1.5 sm:gap-2 md:gap-3 w-full">
+                <!-- 6 Slots dynamically populated -->
+            </div>
+
+            <!-- Action Palette & Drag options -->
+            <div class="flex flex-wrap items-center justify-between border-t border-gray-800/80 pt-2 gap-2">
+                <span class="text-xs text-gray-400 font-bold uppercase tracking-wider font-orbitron">Ações Disponíveis:</span>
+                
+                <div class="flex flex-wrap gap-2 justify-center" id="actionPalette">
+                    <!-- Palette items injected by JS -->
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Main Game Logic Script -->
+    <script>
+        /**
+         * ECHO BLADE - Core Architecture & Game Loop
+         * Built for HTML canvas with custom visual physics, trail recording, timeline execution & particle effects.
+         */
+
+        // --- CONSTANTS & DATA STRUCTURES ---
+        const ACTIONS = {
+            DASH: {
+                id: 'DASH',
+                name: 'Dash Nocturno',
+                icon: 'fa-wind',
+                color: '#00f3ff',
+                borderColor: 'border-cyan-400',
+                bgGradient: 'from-cyan-950/80 to-teal-900/60',
+                desc: 'Avança rapidamente na direção do movimento',
+                duration: 0.5
+            },
+            SLASH: {
+                id: 'SLASH',
+                name: 'Corte Zen',
+                icon: 'fa-wand-magic-sparkles',
+                color: '#ff0055',
+                borderColor: 'border-pink-500',
+                bgGradient: 'from-pink-950/80 to-rose-900/60',
+                desc: 'Ataque circular de 360° em área',
+                duration: 0.5
+            },
+            PARRY: {
+                id: 'PARRY',
+                name: 'Escudo Neon',
+                icon: 'fa-shield-halved',
+                color: '#ffd700',
+                borderColor: 'border-yellow-400',
+                bgGradient: 'from-yellow-950/80 to-amber-900/60',
+                desc: 'Repele projéteis e reflete dano aos inimigos',
+                duration: 0.5
+            },
+            RECOVER: {
+                id: 'RECOVER',
+                name: 'Meditação',
+                icon: 'fa-yin-yang',
+                color: '#10b981',
+                borderColor: 'border-emerald-400',
+                bgGradient: 'from-emerald-950/80 to-teal-900/60',
+                desc: 'Foca a mente, regenera um pouco de HP e reduz cooldown',
+                duration: 0.5
+            }
+        };
+
+        const TOTAL_SLOTS = 6;
+        const SLOT_DURATION = 0.5; // 6 slots * 0.5s = 3s total loop duration
+
+        // --- GAME ENGINE STATE ---
+        const state = {
+            // Game Flow
+            isRunning: true,
+            isPaused: false,
+            isGameOver: false,
+            score: 0,
+            kills: 0,
+            wave: 1,
+            timeElapsed: 0,
+            
+            // Loop & Timeline System
+            timeline: ['DASH', 'SLASH', 'DASH', 'SLASH', 'PARRY', 'RECOVER'],
+            currentSlotIndex: 0,
+            slotTimer: 0,
+            selectedSlotIndex: 0,
+
+            // Screen & Canvas
+            width: 800,
+            height: 600,
+            arenaRadius: 280,
+            screenShake: 0,
+            hitStopTimer: 0,
+
+            // Upgrades / Modifiers
+            upgrades: {
+                ghostExplosion: false,
+                bladeRangeMult: 1.0,
+                dashSpeedMult: 1.0,
+                vampirism: false
+            },
+
+            // Entities
+            player: null,
+            enemies: [],
+            particles: [],
+            projectiles: [],
+            ghostTrails: []
+        };
+
+        // DOM Elements Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- CANVAS RESIZING ---
+        function resizeCanvas() {
+            const containerWidth = window.innerWidth;
+            const containerHeight = window.innerHeight;
+            
+            // Keep aspect ratio 4:3 or fit screen smoothly
+            const size = Math.min(containerWidth * 0.95, containerHeight * 0.65, 800);
+            canvas.width = size;
+            canvas.height = size;
+            state.width = size;
+            state.height = size;
+            state.arenaRadius = (size / 2) * 0.88;
+
+            if (state.player) {
+                state.player.x = Math.min(Math.max(state.player.x, size/2 - state.arenaRadius + 20), size/2 + state.arenaRadius - 20);
+                state.player.y = Math.min(Math.max(state.player.y, size/2 - state.arenaRadius + 20), size/2 + state.arenaRadius - 20);
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- PLAYER CLASS ---
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 14;
+                this.maxHp = 100;
+                this.hp = 100;
+                this.angle = 0; // facing direction
+                this.vx = 0;
+                this.vy = 0;
+                this.speed = 180; // px/sec normal move
+                
+                // Active Action State
+                this.isDashing = false;
+                this.isSlashing = false;
+                this.isParrying = false;
+                this.slashRadius = 0;
+                this.maxSlashRadius = 75;
+                this.parryActive = false;
+
+                // Mouse/Target direction
+                this.targetAngle = 0;
+            }
+
+            update(dt) {
+                // Update direction toward mouse or nearest enemy
+                this.angle = this.targetAngle;
+
+                // Position integration with Arena Boundary collision
+                let nextX = this.x + this.vx * dt;
+                let nextY = this.y + this.vy * dt;
+
+                // Circular Boundary Check
+                const centerX = state.width / 2;
+                const centerY = state.height / 2;
+                const distFromCenter = Math.hypot(nextX - centerX, nextY - centerY);
+
+                if (distFromCenter + this.radius > state.arenaRadius) {
+                    const angleToCenter = Math.atan2(nextY - centerY, nextX - centerX);
+                    nextX = centerX + Math.cos(angleToCenter) * (state.arenaRadius - this.radius);
+                    nextY = centerY + Math.sin(angleToCenter) * (state.arenaRadius - this.radius);
+                }
+
+                this.x = nextX;
+                this.y = nextY;
+
+                // Friction / Deceleration when not dashing
+                if (!this.isDashing) {
+                    this.vx *= 0.85;
+                    this.vy *= 0.85;
+                }
+
+                // Slash expansion animation
+                if (this.isSlashing) {
+                    const targetRadius = this.maxSlashRadius * state.upgrades.bladeRangeMult;
+                    this.slashRadius += (targetRadius - this.slashRadius) * 15 * dt;
+                } else {
+                    this.slashRadius = 0;
+                }
+
+                // Ghost trail generation while moving or dashing
+                if (Math.hypot(this.vx, this.vy) > 50 || this.isDashing) {
+                    if (Math.random() < 0.4) {
+                        state.ghostTrails.push({
+                            x: this.x,
+                            y: this.y,
+                            angle: this.angle,
+                            alpha: 0.6,
+                            color: this.isDashing ? '#00f3ff' : '#ff0055'
+                        });
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // Draw Parry Shield Effect
+                if (this.isParrying) {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.radius + 16, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 215, 0, 0.15)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffd700';
+                    ctx.lineWidth = 3;
+                    ctx.shadowColor = '#ffd700';
+                    ctx.shadowBlur = 15;
+                    ctx.stroke();
+                }
+
+                // Draw Slash Effect
+                if (this.isSlashing && this.slashRadius > 5) {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.slashRadius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 0, 85, 0.15)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#ff0055';
+                    ctx.lineWidth = 4;
+                    ctx.shadowColor = '#ff0055';
+                    ctx.shadowBlur = 20;
+                    ctx.stroke();
+
+                    // Inner neon arc blade streak
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.slashRadius * 0.8, this.angle - Math.PI/1.5, this.angle + Math.PI/1.5);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                // Draw Player Body (Cyber-Zen Stylized Character)
+                ctx.rotate(this.angle);
+
+                // Glow Behind Player
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius + 4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 243, 255, 0.2)';
+                ctx.fill();
+
+                // Base Body
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#0d1117';
+                ctx.fill();
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 2.5;
+                ctx.shadowColor = '#00f3ff';
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+
+                // Direction Blade Pointer
+                ctx.beginPath();
+                ctx.moveTo(0, -this.radius);
+                ctx.lineTo(this.radius + 8, 0);
+                ctx.lineTo(0, this.radius);
+                ctx.fillStyle = '#00f3ff';
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // --- ENEMY CLASS ---
+        class Enemy {
+            constructor(x, y, type = 'CHASER') {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'CHASER' (red square), 'SPINNER' (triangle shooter), 'TANK' (hexagon)
+                this.radius = type === 'TANK' ? 22 : 12;
+                this.hp = type === 'TANK' ? 60 : (type === 'SPINNER' ? 15 : 25);
+                this.maxHp = this.hp;
+                this.speed = type === 'CHASER' ? 110 : (type === 'SPINNER' ? 70 : 50);
+                this.color = type === 'CHASER' ? '#ff0055' : (type === 'SPINNER' ? '#a855f7' : '#f97316');
+                this.angle = 0;
+                this.shootTimer = 0;
+            }
+
+            update(dt, player) {
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                this.angle = Math.atan2(dy, dx);
+
+                if (this.type === 'CHASER' || this.type === 'TANK') {
+                    // Move directly towards player
+                    if (dist > 5) {
+                        this.x += (dx / dist) * this.speed * dt;
+                        this.y += (dy / dist) * this.speed * dt;
+                    }
+                } else if (this.type === 'SPINNER') {
+                    // Maintain distance & shoot geometric shards
+                    if (dist < 180) {
+                        this.x -= (dx / dist) * this.speed * 0.8 * dt;
+                        this.y -= (dy / dist) * this.speed * 0.8 * dt;
+                    } else if (dist > 250) {
+                        this.x += (dx / dist) * this.speed * dt;
+                        this.y += (dy / dist) * this.speed * dt;
+                    }
+
+                    // Shooting Logic
+                    this.shootTimer += dt;
+                    if (this.shootTimer >= 2.5) {
+                        this.shootTimer = 0;
+                        spawnProjectile(this.x, this.y, this.angle, 160, '#a855f7');
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                ctx.strokeStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 12;
+                ctx.lineWidth = 2;
+                ctx.fillStyle = 'rgba(13, 17, 23, 0.9)';
+
+                if (this.type === 'CHASER') {
+                    // Square shape
+                    const s = this.radius * 1.4;
+                    ctx.fillRect(-s/2, -s/2, s, s);
+                    ctx.strokeRect(-s/2, -s/2, s, s);
+                } else if (this.type === 'SPINNER') {
+                    // Triangle shape
+                    ctx.beginPath();
+                    ctx.moveTo(this.radius * 1.3, 0);
+                    ctx.lineTo(-this.radius, -this.radius);
+                    ctx.lineTo(-this.radius, this.radius);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (this.type === 'TANK') {
+                    // Hexagon
+                    ctx.beginPath();
+                    for (let i = 0; i < 6; i++) {
+                        const a = (Math.PI / 3) * i;
+                        const px = Math.cos(a) * this.radius;
+                        const py = Math.sin(a) * this.radius;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                // Enemy HP Bar if damaged
+                if (this.hp < this.maxHp) {
+                    ctx.rotate(-this.angle); // Keep hp bar horizontal
+                    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                    ctx.fillRect(-15, -this.radius - 10, 30, 4);
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(-15, -this.radius - 10, (this.hp / this.maxHp) * 30, 4);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // --- PROJECTILE SYSTEM ---
+        function spawnProjectile(x, y, angle, speed, color) {
+            state.projectiles.push({
+                x, y, angle,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                radius: 4,
+                color,
+                life: 4 // seconds
+            });
+        }
+
+        // --- PARTICLE FX & HIT-STOP SYSTEM ---
+        function triggerHitStop(durationSeconds = 0.06) {
+            state.hitStopTimer = durationSeconds;
+        }
+
+        function triggerScreenShake(intensity = 12) {
+            state.screenShake = intensity;
+        }
+
+        function createExplosion(x, y, color, count = 12) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 40 + Math.random() * 180;
+                state.particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: 1.5 + Math.random() * 3,
+                    color,
+                    alpha: 1,
+                    decay: 1.5 + Math.random() * 2
+                });
+            }
+        }
+
+        // --- TIMELINE & ACTION EXECUTION CORE ---
+        function executeAction(actionKey) {
+            const p = state.player;
+            if (!p) return;
+
+            // Reset action states
+            p.isDashing = false;
+            p.isSlashing = false;
+            p.isParrying = false;
+
+            const targetSpeed = 480 * state.upgrades.dashSpeedMult;
+
+            switch (actionKey) {
+                case 'DASH':
+                    p.isDashing = true;
+                    p.vx = Math.cos(p.angle) * targetSpeed;
+                    p.vy = Math.sin(p.angle) * targetSpeed;
+                    createExplosion(p.x, p.y, '#00f3ff', 6);
+                    break;
+
+                case 'SLASH':
+                    p.isSlashing = true;
+                    triggerScreenShake(6);
+                    // Check area slash damage against nearby enemies immediately & continuously during slot
+                    checkSlashHits();
+                    createExplosion(p.x, p.y, '#ff0055', 8);
+                    break;
+
+                case 'PARRY':
+                    p.isParrying = true;
+                    createExplosion(p.x, p.y, '#ffd700', 5);
+                    break;
+
+                case 'RECOVER':
+                    p.hp = Math.min(p.maxHp, p.hp + 4);
+                    updateHpUI();
+                    createExplosion(p.x, p.y, '#10b981', 6);
+                    break;
+            }
+        }
+
+        function checkSlashHits() {
+            const p = state.player;
+            if (!p) return;
+
+            const slashRange = p.maxSlashRadius * state.upgrades.bladeRangeMult;
+
+            for (let i = state.enemies.length - 1; i >= 0; i--) {
+                const enemy = state.enemies[i];
+                const dist = Math.hypot(enemy.x - p.x, enemy.y - p.y);
+
+                if (dist <= slashRange + enemy.radius) {
+                    // Deal damage
+                    const damage = 35;
+                    enemy.hp -= damage;
+                    
+                    // Knockback
+                    const kbAngle = Math.atan2(enemy.y - p.y, enemy.x - p.x);
+                    enemy.x += Math.cos(kbAngle) * 30;
+                    enemy.y += Math.sin(kbAngle) * 30;
+
+                    // Particle & Impact feedback
+                    createExplosion(enemy.x, enemy.y, '#ff0055', 10);
+                    triggerHitStop(0.05);
+                    triggerScreenShake(8);
+
+                    // Vampirism upgrade check
+                    if (state.upgrades.vampirism && Math.random() < 0.2) {
+                        p.hp = Math.min(p.maxHp, p.hp + 2);
+                        updateHpUI();
+                    }
+
+                    // Enemy death check
+                    if (enemy.hp <= 0) {
+                        createExplosion(enemy.x, enemy.y, enemy.color, 18);
+                        state.enemies.splice(i, 1);
+                        state.score += 150;
+                        state.kills++;
+                        updateScoreUI();
+                        checkWaveCompletion();
+                    }
+                }
+            }
+        }
+
+        // --- WAVE & ENEMY SPAWNER ---
+        function spawnWaveEnemies() {
+            const count = 3 + state.wave * 2;
+            state.enemies = [];
+
+            for (let i = 0; i < count; i++) {
+                // Spawn along edge of circular arena
+                const spawnAngle = Math.random() * Math.PI * 2;
+                const dist = state.arenaRadius - 20;
+                const ex = state.width / 2 + Math.cos(spawnAngle) * dist;
+                const ey = state.height / 2 + Math.sin(spawnAngle) * dist;
+
+                // Enemy Type distribution
+                let type = 'CHASER';
+                const rand = Math.random();
+                if (state.wave >= 2 && rand > 0.6) type = 'SPINNER';
+                if (state.wave >= 3 && rand > 0.85) type = 'TANK';
+
+                state.enemies.push(new Enemy(ex, ey, type));
+            }
+            updateWaveUI();
+        }
+
+        function checkWaveCompletion() {
+            if (state.enemies.length === 0 && !state.isGameOver) {
+                state.wave++;
+                state.score += 500;
+                updateScoreUI();
+                
+                // Show Roguelike Upgrade Modal every wave
+                showUpgradeModal();
+            }
+        }
+
+        // --- UPGRADE MODAL & CARDS ---
+        const UPGRADE_POOL = [
+            {
+                id: 'ghostExplosion',
+                title: 'Trilha Explosiva',
+                desc: 'Rastros de Dash deixam um eco que explode causando dano aos inimigos.',
+                icon: 'fa-burst',
+                color: 'text-cyan-400'
+            },
+            {
+                id: 'bladeRange',
+                title: 'Alcance Astral',
+                desc: 'Aumenta o raio do Corte Zen em +35%.',
+                icon: 'fa-expand',
+                color: 'text-pink-400'
+            },
+            {
+                id: 'dashSpeed',
+                title: 'Overclock de Velocidade',
+                desc: 'Aumenta a velocidade e impulso do Dash em +30%.',
+                icon: 'fa-gauge-high',
+                color: 'text-yellow-400'
+            },
+            {
+                id: 'vampirism',
+                title: 'Sincronia Vampírica',
+                desc: 'Golpes críticos têm chance de restaurar vida do guerreiro.',
+                icon: 'fa-hand-holding-medical',
+                color: 'text-emerald-400'
+            }
+        ];
+
+        function showUpgradeModal() {
+            state.isPaused = true;
+            const container = document.getElementById('upgradeCardsContainer');
+            container.innerHTML = '';
+
+            // Shuffle & pick 3 options
+            const shuffled = [...UPGRADE_POOL].sort(() => 0.5 - Math.random()).slice(0, 3);
+
+            shuffled.forEach(upg => {
+                const card = document.createElement('div');
+                card.className = 'glass-panel p-4 rounded-xl border border-yellow-500/30 hover:border-yellow-400 hover:scale-105 transition-all cursor-pointer flex flex-col items-center text-center';
+                card.innerHTML = `
+                    <div class="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center text-xl mb-3 ${upg.color}">
+                        <i class="fa-solid ${upg.icon}"></i>
+                    </div>
+                    <h3 class="font-orbitron font-bold text-white text-base mb-1">${upg.title}</h3>
+                    <p class="text-xs text-gray-400">${upg.desc}</p>
+                `;
+                card.onclick = () => applyUpgrade(upg.id);
+                container.appendChild(card);
+            });
+
+            document.getElementById('upgradeModal').classList.remove('hidden');
+        }
+
+        function applyUpgrade(upgradeId) {
+            if (upgradeId === 'ghostExplosion') state.upgrades.ghostExplosion = true;
+            if (upgradeId === 'bladeRange') state.upgrades.bladeRangeMult += 0.35;
+            if (upgradeId === 'dashSpeed') state.upgrades.dashSpeedMult += 0.3;
+            if (upgradeId === 'vampirism') state.upgrades.vampirism = true;
+
+            document.getElementById('upgradeModal').classList.add('hidden');
+            state.isPaused = false;
+            spawnWaveEnemies();
+        }
+
+        // --- MAIN UPDATE & DRAW LOOP ---
+        let lastTime = performance.now();
+
+        function gameLoop(now) {
+            requestAnimationFrame(gameLoop);
+
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            if (state.isGameOver || state.isPaused) return;
+
+            // Hit-Stop logic (freezes gameplay briefly for impact feel)
+            if (state.hitStopTimer > 0) {
+                state.hitStopTimer -= dt;
+                return;
+            }
+
+            // --- 1. TIMELINE TICKING ---
+            state.slotTimer += dt;
+            if (state.slotTimer >= SLOT_DURATION) {
+                state.slotTimer = 0;
+                state.currentSlotIndex = (state.currentSlotIndex + 1) % TOTAL_SLOTS;
+                updateTimelineUI();
+
+                // Trigger ghost explosion if upgrade active
+                if (state.upgrades.ghostExplosion && state.ghostTrails.length > 0) {
+                    const trail = state.ghostTrails[state.ghostTrails.length - 1];
+                    createExplosion(trail.x, trail.y, '#00f3ff', 8);
+                }
+            }
+
+            // Execute action assigned to current slot
+            const currentAction = state.timeline[state.currentSlotIndex];
+            if (currentAction) {
+                executeAction(currentAction);
+            }
+
+            // --- 2. UPDATE ENTITIES ---
+            const p = state.player;
+            p.update(dt);
+
+            // Update Ghost Trails
+            for (let i = state.ghostTrails.length - 1; i >= 0; i--) {
+                const trail = state.ghostTrails[i];
+                trail.alpha -= dt * 1.5;
+                if (trail.alpha <= 0) state.ghostTrails.splice(i, 1);
+            }
+
+            // Update Particles
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                const pt = state.particles[i];
+                pt.x += pt.vx * dt;
+                pt.y += pt.vy * dt;
+                pt.alpha -= pt.decay * dt;
+                if (pt.alpha <= 0) state.particles.splice(i, 1);
+            }
+
+            // Update Projectiles
+            for (let i = state.projectiles.length - 1; i >= 0; i--) {
+                const proj = state.projectiles[i];
+                proj.x += proj.vx * dt;
+                proj.y += proj.vy * dt;
+                proj.life -= dt;
+
+                // Check collision with player
+                const distToPlayer = Math.hypot(proj.x - p.x, proj.y - p.y);
+                if (distToPlayer <= p.radius + proj.radius) {
+                    if (p.isParrying) {
+                        // Reflect projectile back!
+                        proj.vx *= -1.5;
+                        proj.vy *= -1.5;
+                        proj.color = '#ffd700';
+                        createExplosion(proj.x, proj.y, '#ffd700', 8);
+                        triggerHitStop(0.04);
+                    } else {
+                        // Player damaged
+                        p.hp -= 12;
+                        updateHpUI();
+                        createExplosion(proj.x, proj.y, '#ff0055', 8);
+                        triggerScreenShake(10);
+                        state.projectiles.splice(i, 1);
+                        checkGameOver();
+                        continue;
+                    }
+                }
+
+                if (proj.life <= 0) state.projectiles.splice(i, 1);
+            }
+
+            // Update Enemies & Contact Damage
+            for (let i = 0; i < state.enemies.length; i++) {
+                const enemy = state.enemies[i];
+                enemy.update(dt, p);
+
+                // Collision with player
+                const dist = Math.hypot(enemy.x - p.x, enemy.y - p.y);
+                if (dist < enemy.radius + p.radius) {
+                    if (p.isParrying) {
+                        // Reflect damage to enemy
+                        enemy.hp -= 20;
+                        createExplosion(enemy.x, enemy.y, '#ffd700', 6);
+                    } else if (!p.isDashing) {
+                        // Player damage
+                        p.hp -= 15 * dt * 3; // contact burn
+                        updateHpUI();
+                        triggerScreenShake(4);
+                        checkGameOver();
+                    }
+                }
+            }
+
+            // --- 3. RENDERING ---
+            renderCanvas();
+        }
+
+        function renderCanvas() {
+            // Apply Screen Shake transform
+            ctx.save();
+            if (state.screenShake > 0) {
+                const shakeX = (Math.random() - 0.5) * state.screenShake;
+                const shakeY = (Math.random() - 0.5) * state.screenShake;
+                ctx.translate(shakeX, shakeY);
+                state.screenShake *= 0.9;
+                if (state.screenShake < 0.5) state.screenShake = 0;
+            }
+
+            // Clear Background
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(0, 0, state.width, state.height);
+
+            const centerX = state.width / 2;
+            const centerY = state.height / 2;
+
+            // Render Cyber-Zen Arena (Glass Tatame Circle)
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, state.arenaRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(10, 15, 25, 0.85)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#00f3ff';
+            ctx.shadowBlur = 20;
+            ctx.stroke();
+
+            // Arena Floor Radial Grid Lines
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
+            ctx.lineWidth = 1;
+            for (let r = 50; r < state.arenaRadius; r += 60) {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Render Ghost Trails
+            state.ghostTrails.forEach(trail => {
+                ctx.save();
+                ctx.translate(trail.x, trail.y);
+                ctx.rotate(trail.angle);
+                ctx.beginPath();
+                ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                ctx.fillStyle = trail.color;
+                ctx.globalAlpha = trail.alpha * 0.4;
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // Render Projectiles
+            state.projectiles.forEach(proj => {
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI * 2);
+                ctx.fillStyle = proj.color;
+                ctx.shadowColor = proj.color;
+                ctx.shadowBlur = 10;
+                ctx.fill();
+            });
+
+            // Render Enemies
+            state.enemies.forEach(enemy => enemy.draw(ctx));
+
+            // Render Player
+            if (state.player) state.player.draw(ctx);
+
+            // Render Particles
+            state.particles.forEach(pt => {
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+                ctx.fillStyle = pt.color;
+                ctx.globalAlpha = pt.alpha;
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            ctx.restore();
+        }
+
+        // --- GAME OVER & RESTART ---
+        function checkGameOver() {
+            if (state.player.hp <= 0) {
+                state.player.hp = 0;
+                state.isGameOver = true;
+                document.getElementById('finalScore').innerText = state.score;
+                document.getElementById('finalWave').innerText = state.wave;
+                document.getElementById('finalKills').innerText = state.kills;
+                document.getElementById('gameOverModal').classList.remove('hidden');
+            }
+        }
+
+        function restartGame() {
+            state.isGameOver = false;
+            state.isPaused = false;
+            state.score = 0;
+            state.kills = 0;
+            state.wave = 1;
+            state.currentSlotIndex = 0;
+            state.slotTimer = 0;
+            state.upgrades = { ghostExplosion: false, bladeRangeMult: 1.0, dashSpeedMult: 1.0, vampirism: false };
+            
+            state.player = new Player(state.width / 2, state.height / 2);
+            updateHpUI();
+            updateScoreUI();
+            spawnWaveEnemies();
+
+            document.getElementById('gameOverModal').classList.add('hidden');
+        }
+
+        // --- UI & TIMELINE INTERACTION ---
+        function initUI() {
+            // Render Timeline Action Slots
+            const slotsContainer = document.getElementById('timelineSlots');
+            slotsContainer.innerHTML = '';
+
+            for (let i = 0; i < TOTAL_SLOTS; i++) {
+                const actionKey = state.timeline[i];
+                const action = ACTIONS[actionKey];
+
+                const slot = document.createElement('div');
+                slot.id = `slot-${i}`;
+                slot.className = `glass-panel p-2 rounded-xl flex flex-col items-center justify-center cursor-pointer border transition-all duration-200 relative group min-h-[64px] ${action.borderColor}`;
+                
+                slot.innerHTML = `
+                    <span class="absolute top-1 left-2 text-[9px] font-orbitron font-bold text-gray-400">${i * 0.5}s</span>
+                    <i class="fa-solid ${action.icon} text-lg sm:text-xl mb-1" style="color: ${action.color}"></i>
+                    <span class="text-[10px] font-orbitron font-bold uppercase tracking-wider text-gray-200 truncate w-full text-center">${action.name}</span>
+                `;
+
+                // Click slot to cycle actions quickly
+                slot.onclick = () => cycleSlotAction(i);
+                slotsContainer.appendChild(slot);
+            }
+
+            // Render Action Palette Buttons
+            const paletteContainer = document.getElementById('actionPalette');
+            paletteContainer.innerHTML = '';
+
+            Object.values(ACTIONS).forEach(act => {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1.5 rounded-lg bg-gradient-to-r ${act.bgGradient} border ${act.borderColor} text-xs font-orbitron font-bold flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all text-white shadow-md`;
+                btn.innerHTML = `<i class="fa-solid ${act.icon}" style="color: ${act.color}"></i> ${act.name}`;
+                btn.onclick = () => setSlotAction(state.selectedSlotIndex, act.id);
+                paletteContainer.appendChild(btn);
+            });
+
+            updateTimelineUI();
+        }
+
+        function cycleSlotAction(index) {
+            state.selectedSlotIndex = index;
+            const actionKeys = Object.keys(ACTIONS);
+            const currentKey = state.timeline[index];
+            const nextIndex = (actionKeys.indexOf(currentKey) + 1) % actionKeys.length;
+            state.timeline[index] = actionKeys[nextIndex];
+            initUI();
+        }
+
+        function setSlotAction(index, actionId) {
+            state.timeline[index] = actionId;
+            initUI();
+        }
+
+        function updateTimelineUI() {
+            for (let i = 0; i < TOTAL_SLOTS; i++) {
+                const slotEl = document.getElementById(`slot-${i}`);
+                if (!slotEl) continue;
+
+                if (i === state.currentSlotIndex) {
+                    slotEl.classList.add('slot-active');
+                } else {
+                    slotEl.classList.remove('slot-active');
+                }
+            }
+        }
+
+        function updateHpUI() {
+            const hpBar = document.getElementById('hpBar');
+            if (state.player && hpBar) {
+                const pct = Math.max(0, (state.player.hp / state.player.maxHp) * 100);
+                hpBar.style.width = `${pct}%`;
+            }
+        }
+
+        function updateScoreUI() {
+            document.getElementById('scoreText').innerText = state.score;
+            document.getElementById('enemiesText').innerText = state.enemies.length;
+        }
+
+        function updateWaveUI() {
+            document.getElementById('waveText').innerText = state.wave;
+            document.getElementById('enemiesText').innerText = state.enemies.length;
+        }
+
+        // Mouse controls to steer player facing angle
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (state.player) {
+                state.player.targetAngle = Math.atan2(mouseY - state.player.y, mouseX - state.player.x);
+            }
+        });
+
+        // Touch controls for mobile support
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                const touchX = e.touches[0].clientX - rect.left;
+                const touchY = e.touches[0].clientY - rect.top;
+
+                if (state.player) {
+                    state.player.targetAngle = Math.atan2(touchY - state.player.y, touchX - state.player.x);
+                }
+            }
+        }, { passive: true });
+
+        // Pause / Resume Controls
+        document.getElementById('btnToggleLoop').onclick = () => {
+            state.isPaused = !state.isPaused;
+            const icon = document.getElementById('toggleLoopIcon');
+            const text = document.getElementById('toggleLoopText');
+            const status = document.getElementById('loopStatus');
+
+            if (state.isPaused) {
+                icon.className = 'fa-solid fa-play';
+                text.innerText = 'CONTINUAR LOOP';
+                status.innerText = 'PAUSADO';
+                status.className = 'text-sm font-orbitron font-bold text-yellow-400';
+            } else {
+                icon.className = 'fa-solid fa-pause';
+                text.innerText = 'PAUSAR LOOP';
+                status.innerText = 'EXECUTANDO';
+                status.className = 'text-sm font-orbitron font-bold text-pink-400';
+            }
+        };
+
+        document.getElementById('btnClearTimeline').onclick = () => {
+            state.timeline = ['DASH', 'SLASH', 'DASH', 'SLASH', 'DASH', 'SLASH'];
+            initUI();
+        };
+
+        document.getElementById('btnRestart').onclick = restartGame;
+
+        // --- INITIALIZATION ---
+        window.onload = () => {
+            resizeCanvas();
+            state.player = new Player(state.width / 2, state.height / 2);
+            initUI();
+            spawnWaveEnemies();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
