@@ -8,7 +8,7 @@ Task = pequena, verificável, um dono, com "pronto quando" testável.
 | ID | Título | Dono | Status | Pronto quando | Deps |
 |----|--------|------|--------|---------------|------|
 | T-001 | Núcleo: Plan, Simulator, Timeline, LoopClock, Player, WaveManager, planner UI e testes | Gameplay | feita | 62 checagens passando; cena roda sem erro | - |
-| T-002 | Pipeline de deploy Web (Actions + Netlify, export preset, shell) | Plataforma | em validação | push em `dev` publica `dev--echosgame.netlify.app` que abre e roda | segredos do dono |
+| T-002 | Pipeline de deploy Web (Actions + Netlify, export preset, shell) | Plataforma | feita (falta medir no iPhone) | push em `dev` publica `dev--echosgame.netlify.app` que abre e roda (confirmado pelo dono) | segredos do dono |
 | T-003 | Tela inicial "toque para começar" e fim de jogo com reinício por toque/clique | UI | a fazer | jogável no navegador sem teclado para iniciar/reiniciar | T-002 |
 | T-004 | Juice básico: hit-stop 0,05 s, screen shake, rastro do personagem, estilhaços dos inimigos | VFX | a fazer | visível em captura; sem queda de FPS no Safari iPhone | T-002 |
 | T-005 | Controles de toque: planejar com toque (slots/paleta) e desvio por joystick virtual | UI | a fazer | planejável e jogável num iPhone | T-003 |

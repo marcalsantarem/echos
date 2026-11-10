@@ -16,7 +16,11 @@ Adotado em 2026-11-10 (decisão D-03), a partir do método do Project Anima.
    - tag -> https://<tag normalizada>--echosgame.netlify.app (ex. `v0.1.0` -> `v0-1-0--echosgame.netlify.app`), nunca produção, mais uma GitHub Release com o zip do build.
 3. Segredos do repo (só o dono cadastra): `NETLIFY_AUTH_TOKEN` e `NETLIFY_SITE_ID`. Sem eles o CI testa e exporta, mas pula o deploy com aviso.
 
+Passo a passo do deploy em `deploy.md`; organização do código em `estrutura.md`.
+
 ## Regras de trabalho
+- Tamanho (P/M/G) em cada task nova; task surgida no meio do marco recebe ID sequencial e entra no quadro. "Feita (falta medir no dispositivo)" quando só o iPhone confirma.
+- Texto de PR (título e descrição) sempre colado no chat.
 - Task: pequena, verificável, um dono, critério de "pronto quando", pertence a um marco (ver `backlog.md`). Tasks que mexem nos mesmos arquivos não rodam em paralelo.
 - Trabalho delegado a especialista (subagente) exige briefing em `docs/briefings/BRF-xxx_<entrega>.md` (modelo em `_modelo.md`). Especialista não commita nem mexe em `project.godot`/Input Map sem autorização no briefing; o líder valida (suíte completa) antes de commitar.
 - Fonte da verdade: dono > `00_biblia_projeto.md` > `decisoes.md`. Itens `[Proposta]`/`[A definir]` não são regra: perguntar antes.
