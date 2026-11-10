@@ -8,6 +8,14 @@ Echo Blade: top-down roguelike in Godot 4.7 (GDScript), single circular arena, n
 
 Not built yet (from the concept doc): roguelike mutations (Loop Espelhado, Eco Autônomo, Sobrecarga de Lâmina), upgrades (Fantasma, Lâmina Vampírica, Overclock Temporal), hit-stop/screen shake/ghost-trail VFX, bosses, replay/GIF export (9:16), web/mobile export. `EchoPlayer` (ghost replaying a Timeline) exists as the base for "Eco Autônomo" but Main does not spawn it.
 
+## Workflow (adopted by the owner, 2026-11-10; details in `docs/git-workflow.md`)
+
+- Work and commit only on `dev`; never push to `main` (protected; PR `dev`→`main` only when the owner asks). No other branches. Closed versions live only as tags `v0.x.0`, created on `main` when the owner asks. Commit messages: Portuguese, short, imperative; one commit per finished stage, project opening cleanly and tests green.
+- Roadmap in `docs/marcos.md`, tasks in `docs/backlog.md` (only the current milestone is broken into tasks), owner decisions in `docs/decisoes.md` (`[Proposta]`/`[A definir]` are NOT rules: ask first), game bible in `docs/00_biblia_projeto.md`. Delegated work needs a briefing (`docs/briefings/_modelo.md`).
+- CI (`.github/workflows/deploy-web.yml`): on push to `dev`/`main` and any tag it runs the tests, exports preset "Web" and deploys to Netlify site `echosgame` (`dev--echosgame.netlify.app`, prod on `main`, `<tag>--echosgame.netlify.app` for tags). Deploy is skipped with a warning until the owner sets repo secrets `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID`. Never type or store secrets.
+- Web constraints: single-thread export, Compatibility renderer, Safari on iPhone is the performance target; avoid per-frame allocations.
+- Keep answers and reports short; read only what is needed; filter long outputs.
+
 ## Commands
 
 Godot is not on PATH. Set `$g = "C:\Program Files\Godot\Godot_v4.7.2-stable_win64.exe"` (PowerShell) and run from the repo root:

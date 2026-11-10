@@ -1,0 +1,177 @@
+# Build Web (Godot) + deploy no Netlify (site "echosgame").
+# dev  -> https://dev--echosgame.netlify.app (alias "dev")
+# main -> https://echosgame.netlify.app (produção)
+# qualquer tag -> https://<alias-da-tag>--echosgame.netlify.app (nunca produção) + GitHub Release com o zip do build
+# Sem os segredos NETLIFY_AUTH_TOKEN / NETLIFY_SITE_ID o deploy é pulado (com aviso); testes e export rodam sempre.
+name: Deploy Web
+
+on:
+  push:
+    branches: [dev, main]
+    tags: ['**']
+  workflow_dispatch:
+
+# Um deploy por ref de cada vez; um push novo na mesma ref cancela o anterior.
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GODOT_RELEASE: "4.7.2-stable"
+  NETLIFY_CLI_VERSION: "27.16.2"
+  SITE: "echosgame"
+
+jobs:
+  build:
+    name: Testes + export Web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GODOT_BIN: ${{ github.workspace }}/.ci/godot/Godot_v4.7.2-stable_linux.x86_64
+      TEMPLATES_DIR: /home/runner/.local/share/godot/export_templates/4.7.2.stable
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Cache do Godot e do template Web
+        id: godot-cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            .ci/godot
+            /home/runner/.local/share/godot/export_templates/4.7.2.stable
+          key: godot-${{ env.GODOT_RELEASE }}-linux-web-nothreads-v1
+
+      # Fonte oficial: releases de godotengine/godot-builds, conferidas pelo SHA512-SUMS.txt.
+      - name: Baixar Godot e template Web
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_RELEASE}"
+          bin_zip="Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          tpz="Godot_v${GODOT_RELEASE}_export_templates.tpz"
+          mkdir -p /tmp/godot-dl .ci/godot "$TEMPLATES_DIR"
+          cd /tmp/godot-dl
+          curl -fsSL --retry 3 -O "$base/SHA512-SUMS.txt"
+          curl -fsSL --retry 3 -O "$base/$bin_zip"
+          curl -fsSL --retry 3 -O "$base/$tpz"
+          grep -E " (\*)?(${bin_zip}|${tpz})$" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q "$bin_zip" -d "$GITHUB_WORKSPACE/.ci/godot"
+          # Só o template usado pelo preset (single-threaded, sem extensões).
+          unzip -q -j "$tpz" "templates/web_nothreads_release.zip" "templates/version.txt" -d "$TEMPLATES_DIR"
+          rm -rf /tmp/godot-dl
+
+      - name: Conferir Godot
+        run: |
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+
+      - name: Importar o projeto
+        run: '"$GODOT_BIN" --headless --path . --import'
+
+      # A suíte sai com código != 0 se algum teste falhar; sem testes verdes, não há deploy.
+      - name: Testes
+        run: '"$GODOT_BIN" --headless --path . -s tests/run_tests.gd'
+
+      - name: Export Web
+        run: |
+          set -euo pipefail
+          mkdir -p build/web
+          "$GODOT_BIN" --headless --path . --export-release "Web" build/web/index.html
+          test -s build/web/index.html
+          test -s build/web/index.wasm
+          test -s build/web/index.pck
+          # Versão/build injetados no HTML (GITHUB_SHA, GITHUB_REF_NAME, GITHUB_RUN_NUMBER).
+          bash web/inject_build.sh build/web
+          du -ah build/web | sort -h
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy Netlify (${{ github.ref_name }})
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # contents: write só aqui, para criar a GitHub Release da tag.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # Tag nunca vai para produção: alias derivado do nome da tag.
+      # Alias: minúsculas, fora de [a-z0-9-] vira "-", sem "-" nas pontas, máx. 37 caracteres.
+      # O nome da tag passa por env (nunca interpolado no script).
+      - name: Definir destino do deploy
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$REF_TYPE" = "tag" ]; then
+            alias="$(printf '%s' "$REF_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]/-/g' | cut -c1-37 | sed -E 's/^-+//; s/-+$//')"
+            case "$alias" in ""|dev|main) alias="tag-${alias}"; alias="${alias%-}" ;; esac
+            echo "DEPLOY_TARGET=--alias=${alias}" >> "$GITHUB_ENV"
+            echo "SITE_URL=https://${alias}--${SITE}.netlify.app" >> "$GITHUB_ENV"
+          elif [ "$REF_NAME" = "main" ]; then
+            echo "DEPLOY_TARGET=--prod" >> "$GITHUB_ENV"
+            echo "SITE_URL=https://${SITE}.netlify.app" >> "$GITHUB_ENV"
+          else
+            echo "DEPLOY_TARGET=--alias=dev" >> "$GITHUB_ENV"
+            echo "SITE_URL=https://dev--${SITE}.netlify.app" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: web-build
+          path: build/web
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Conferir segredos do Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          if [ -n "$NETLIFY_AUTH_TOKEN" ] && [ -n "$NETLIFY_SITE_ID" ]; then
+            echo "HAVE_SECRETS=true" >> "$GITHUB_ENV"
+          else
+            echo "HAVE_SECRETS=false" >> "$GITHUB_ENV"
+            echo "::warning::NETLIFY_AUTH_TOKEN/NETLIFY_SITE_ID ausentes: deploy pulado (testes e export passaram)."
+          fi
+
+      # O netlify-cli lê NETLIFY_AUTH_TOKEN e NETLIFY_SITE_ID do ambiente; nada de segredo na linha de comando.
+      - name: Deploy
+        if: env.HAVE_SECRETS == 'true'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes "netlify-cli@${NETLIFY_CLI_VERSION}" deploy \
+            --dir=build/web \
+            --no-build \
+            $DEPLOY_TARGET \
+            --message "${GITHUB_REF_NAME} ${GITHUB_SHA::7}"
+          echo "Publicado em: ${SITE_URL}"
+
+      # Só em tag: anexa o build (zip) a uma GitHub Release com o nome da tag.
+      - name: GitHub Release (tag)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          zipname="echos-web-${TAG//[^A-Za-z0-9._-]/-}.zip"
+          (cd build/web && zip -qr "$GITHUB_WORKSPACE/$zipname" .)
+          gh release create "$TAG" "$zipname" --verify-tag --title "$TAG" \
+            --notes "Build Web de ${TAG} (${GITHUB_SHA::7}). Teste: ${SITE_URL}"
