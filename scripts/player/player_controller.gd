@@ -13,6 +13,8 @@ const InputSetup = preload("res://scripts/input_setup.gd")
 const Combat = preload("res://scripts/combat/combat.gd")
 
 const WALL_DAMAGE := 5
+const TRAIL_LEN := 14
+const TRAIL_JUMP_SQ := 6400.0  # segmento > 80 px = salto do fim do loop; não desenha
 
 @export var max_health := 100
 @export var arena_radius := 300.0
@@ -29,6 +31,13 @@ var _facing := Vector2.RIGHT
 var _flash_left := 0
 var _flash_action := Timeline.Action.NONE
 var _dead := false
+var _trail := PackedVector2Array()  # buffer circular pré-alocado (sem alocar por quadro)
+var _trail_head := 0
+var _trail_ready := false
+
+
+func _init() -> void:
+	_trail.resize(TRAIL_LEN)
 
 
 func _ready() -> void:
@@ -73,6 +82,12 @@ func _physics_process(delta: float) -> void:
 	position = (baked.position_at(f) + nudge).limit_length(arena_radius)
 	_facing = baked.facing_at(f)
 
+	if not _trail_ready:
+		_trail.fill(position)
+		_trail_ready = true
+	_trail[_trail_head] = position
+	_trail_head = (_trail_head + 1) % TRAIL_LEN
+
 	# Eventos disparam uma vez por frame (evita repetir enquanto o relógio está parado).
 	if f != _last_frame:
 		_last_frame = f
@@ -90,6 +105,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _draw() -> void:
+	# Rastro de luz ciano que some com o tempo.
+	for i in TRAIL_LEN - 1:
+		var a := _trail[(_trail_head + i) % TRAIL_LEN] - position
+		var b := _trail[(_trail_head + i + 1) % TRAIL_LEN] - position
+		if a.distance_squared_to(b) > TRAIL_JUMP_SQ:
+			continue
+		draw_line(a, b, Color(0.3, 1.0, 1.0, 0.6 * float(i + 1) / TRAIL_LEN), 3.0)
 	var body := Color(0.95, 0.95, 1.0) if not _dead else Color(1, 0.2, 0.2)
 	draw_circle(Vector2.ZERO, 12.0, body)
 	draw_line(Vector2.ZERO, _facing * 18.0, Color(1, 0.8, 0.3), 2.0)

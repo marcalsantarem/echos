@@ -15,6 +15,9 @@ const Player = preload("res://scripts/player/player_controller.gd")
 const WaveManager = preload("res://scripts/waves/wave_manager.gd")
 const PlannerUI = preload("res://scripts/ui/planner_ui.gd")
 const OverlayUI = preload("res://scripts/ui/overlay_ui.gd")
+const Enemy = preload("res://scripts/waves/enemy.gd")
+const FxPool = preload("res://scripts/fx/fx_pool.gd")
+const Juice = preload("res://scripts/fx/juice.gd")
 const InputSetup = preload("res://scripts/input_setup.gd")
 
 ## Sobrevive a reload_current_scene: depois de "jogar de novo" não mostra o título outra vez.
@@ -36,7 +39,13 @@ var player: Node2D
 var waves: Node2D
 var planner: CanvasLayer
 var overlay: CanvasLayer
+var fx: Node2D
+var juice: Node
 var hud: Label
+
+var _kills_pending := 0
+var _kill_dir := Vector2.RIGHT
+var _flush_queued := false
 
 var _running := false
 var _over := false
@@ -68,6 +77,14 @@ func _ready() -> void:
 	waves.arena_radius = arena_radius
 	waves.target = player
 	add_child(waves)
+	waves.enemy_killed.connect(_on_enemy_killed)
+
+	fx = FxPool.new()
+	add_child(fx)
+	juice = Juice.new()
+	add_child(juice)
+	juice.target = self
+	juice.base_position = position
 
 	planner = PlannerUI.new()
 	add_child(planner)
@@ -90,6 +107,24 @@ func _ready() -> void:
 		overlay.show_title()
 
 	_rebake(true)
+
+
+## Mortes no mesmo tick são agrupadas: tremor proporcional e hit-stop só em grupo (2+).
+func _on_enemy_killed(pos: Vector2, kind: int) -> void:
+	fx.burst(pos, Enemy.COLORS[kind])
+	_kills_pending += 1
+	_kill_dir = pos - player.global_position
+	if not _flush_queued:
+		_flush_queued = true
+		_flush_kills.call_deferred()
+
+
+func _flush_kills() -> void:
+	_flush_queued = false
+	juice.shake(_kill_dir, 3.0 + 1.5 * mini(_kills_pending, 6))
+	if _kills_pending >= 2:
+		juice.hit_stop()
+	_kills_pending = 0
 
 
 func _on_overlay_confirmed() -> void:

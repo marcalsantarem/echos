@@ -8,6 +8,8 @@ const Enemy = preload("res://scripts/waves/enemy.gd")
 
 signal wave_started(wave: int, enemy_count: int)
 signal wave_cleared(wave: int)
+## Inimigo morto pelo jogador/ecos (posição global e tipo), para estilhaços e hit-stop.
+signal enemy_killed(pos: Vector2, kind: int)
 
 @export var arena_radius := 300.0
 @export var base_count := 3
@@ -70,12 +72,18 @@ func spawn_enemy() -> Node2D:
 	enemy.position = random_edge_point()
 	alive += 1
 	enemy.tree_exited.connect(_on_enemy_gone, CONNECT_ONE_SHOT)
+	enemy.died.connect(_on_enemy_died)
 	return enemy
 
 
 ## Ponto local (relativo ao centro da arena) exatamente sobre a borda.
 func random_edge_point() -> Vector2:
 	return Vector2.from_angle(rng.randf() * TAU) * arena_radius
+
+
+func _on_enemy_died(enemy: Node2D, by_player: bool) -> void:
+	if by_player:
+		enemy_killed.emit(enemy.global_position, enemy.kind)
 
 
 func _on_enemy_gone() -> void:

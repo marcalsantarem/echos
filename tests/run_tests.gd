@@ -14,6 +14,8 @@ const WaveManager = preload("res://scripts/waves/wave_manager.gd")
 const Enemy = preload("res://scripts/waves/enemy.gd")
 const PlannerUI = preload("res://scripts/ui/planner_ui.gd")
 const OverlayUI = preload("res://scripts/ui/overlay_ui.gd")
+const FxPool = preload("res://scripts/fx/fx_pool.gd")
+const Juice = preload("res://scripts/fx/juice.gd")
 
 var _failures := 0
 var _checks := 0
@@ -353,6 +355,84 @@ func test_main_scene_title_then_game_over_flow() -> void:
 	root.remove_child(main)
 	main.free()
 	main_script.skip_title = false
+
+
+# --- Juice (T-004) ---------------------------------------------------------
+
+func test_enemy_killed_signal_only_for_player_kills() -> void:
+	var wm := WaveManager.new()
+	wm.rng.seed = 5
+	root.add_child(wm)
+	var kills := []
+	wm.enemy_killed.connect(func(pos, kind): kills.append([pos, kind]))
+	var spawned := wm.spawn_wave()
+	var by_hit: Node2D = spawned[0]
+	var by_contact: Node2D = spawned[1]
+	var expected_pos := by_hit.global_position
+	by_hit.die()
+	by_contact.die(false)
+	check(kills.size() == 1, "só a morte por golpe gera enemy_killed (foram %d)" % kills.size())
+	check(kills.size() == 1 and kills[0][0] == expected_pos and kills[0][1] == by_hit.kind, "sinal traz posição e tipo")
+	for e in spawned:
+		e.free()
+	root.remove_child(wm)
+	wm.free()
+
+
+func test_fx_pool_reuses_fixed_instances() -> void:
+	var pool := FxPool.new()
+	root.add_child(pool)
+	var children_before := pool.get_child_count()
+	check(pool.pool_size() == FxPool.POOL_SIZE and children_before == FxPool.POOL_SIZE, "pool pré-alocado")
+	var objects_before := _objects()
+	for i in 200:
+		pool.burst(Vector2(i, 0), Color.RED)
+	check(pool.get_child_count() == children_before, "200 explosões não criam nós")
+	check(_objects() == objects_before, "nenhum objeto novo por explosão (antes %d, depois %d)" % [objects_before, _objects()])
+	check((pool.get_child(0) as CPUParticles2D).emitting or (pool.get_child(1) as CPUParticles2D).emitting, "partículas ativas")
+	root.remove_child(pool)
+	pool.free()
+
+
+func test_juice_shake_decays_and_hit_stop_has_cooldown() -> void:
+	var target := Node2D.new()
+	target.position = Vector2(100, 100)
+	var juice := Juice.new()
+	root.add_child(target)
+	root.add_child(juice)
+	juice.target = target
+	juice.base_position = target.position
+	juice.shake(Vector2.RIGHT, 50.0)
+	check(juice.current_shake() == Juice.SHAKE_MAX, "tremor limitado a SHAKE_MAX")
+	for i in 120:
+		juice._process(1.0 / 60.0)
+	check(juice.current_shake() == 0.0 and target.position == Vector2(100, 100), "tremor some e a arena volta ao lugar")
+	check(juice.hit_stop() and paused, "hit-stop pausa a árvore")
+	check(not juice.hit_stop(), "segundo hit-stop é ignorado (recarga/ativo)")
+	juice._resume()
+	check(not paused, "retoma a árvore")
+	check(not juice.hit_stop(), "recarga ainda vale logo após retomar")
+	root.remove_child(juice)
+	root.remove_child(target)
+	juice.free()
+	target.free()
+
+
+func test_player_trail_buffer_is_fixed_size() -> void:
+	var clock := LoopClock.new()
+	var p := Plan.new(2)
+	p.set_slot(0, Timeline.Action.MOVE, Vector2.RIGHT)
+	var player := Player.new()
+	root.add_child(player)
+	player.setup(clock, Simulator.bake(p, 300.0))
+	for i in 60:
+		player._physics_process(1.0 / 60.0)
+		clock.step()
+	check(player._trail.size() == Player.TRAIL_LEN, "buffer do rastro não cresce")
+	check(player._trail[(player._trail_head + Player.TRAIL_LEN - 1) % Player.TRAIL_LEN].is_equal_approx(player.position), "rastro termina na posição atual")
+	root.remove_child(player)
+	player.free()
+	clock.free()
 
 
 # --- Vazamentos de memória ------------------------------------------------

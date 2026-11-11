@@ -1,7 +1,8 @@
 extends Node2D
 ## Inimigo geométrico simples: caminha até o alvo, causa dano de contato e morre.
 
-signal died(enemy: Node2D)
+## `by_player` é false quando o inimigo morre por contato (sem estilhaço/hit-stop).
+signal died(enemy: Node2D, by_player: bool)
 
 enum Kind { TRIANGLE, SQUARE, HEXAGON }
 
@@ -38,7 +39,7 @@ func _physics_process(delta: float) -> void:
 	global_position = global_position.move_toward(dest, s * delta)
 	if has_target and global_position.distance_to(dest) <= CONTACT_RADIUS and target.has_method("take_damage"):
 		target.take_damage(contact_damage)
-		die()
+		die(false)
 
 
 ## Pulso eletromagnético: reduz a velocidade por `seconds`.
@@ -46,11 +47,11 @@ func slow(seconds: float) -> void:
 	_slow_left = maxf(_slow_left, seconds)
 
 
-func die() -> void:
+func die(by_player: bool = true) -> void:
 	if _dead:
 		return
 	_dead = true
-	died.emit(self)
+	died.emit(self, by_player)
 	queue_free()
 
 
