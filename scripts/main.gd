@@ -15,6 +15,7 @@ const Player = preload("res://scripts/player/player_controller.gd")
 const WaveManager = preload("res://scripts/waves/wave_manager.gd")
 const PlannerUI = preload("res://scripts/ui/planner_ui.gd")
 const OverlayUI = preload("res://scripts/ui/overlay_ui.gd")
+const TouchControls = preload("res://scripts/ui/touch_controls.gd")
 const Enemy = preload("res://scripts/waves/enemy.gd")
 const FxPool = preload("res://scripts/fx/fx_pool.gd")
 const Juice = preload("res://scripts/fx/juice.gd")
@@ -39,6 +40,7 @@ var player: Node2D
 var waves: Node2D
 var planner: CanvasLayer
 var overlay: CanvasLayer
+var touch: CanvasLayer
 var fx: Node2D
 var juice: Node
 var hud: Label
@@ -85,6 +87,10 @@ func _ready() -> void:
 	add_child(juice)
 	juice.target = self
 	juice.base_position = position
+
+	touch = TouchControls.new()
+	add_child(touch)
+	touch.pulse_pressed.connect(_try_pulse)
 
 	planner = PlannerUI.new()
 	add_child(planner)
@@ -199,9 +205,17 @@ func _physics_process(delta: float) -> void:
 		_escalate()
 
 	_pulse_cd = maxf(0.0, _pulse_cd - delta)
-	if _pulse_cd == 0.0 and Input.is_action_just_pressed("pulse"):
-		_pulse_cd = PULSE_COOLDOWN
-		get_tree().call_group("enemies", "slow", PULSE_SLOW_SEC)
+	touch.set_pulse_cooldown(_pulse_cd)
+	if Input.is_action_just_pressed("pulse"):
+		_try_pulse()
+
+
+## Pulso eletromagnético: tecla Espaço ou botão de toque.
+func _try_pulse() -> void:
+	if not _running or _over or _pulse_cd > 0.0:
+		return
+	_pulse_cd = PULSE_COOLDOWN
+	get_tree().call_group("enemies", "slow", PULSE_SLOW_SEC)
 
 
 func _escalate() -> void:

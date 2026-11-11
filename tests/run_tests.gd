@@ -14,6 +14,7 @@ const WaveManager = preload("res://scripts/waves/wave_manager.gd")
 const Enemy = preload("res://scripts/waves/enemy.gd")
 const PlannerUI = preload("res://scripts/ui/planner_ui.gd")
 const OverlayUI = preload("res://scripts/ui/overlay_ui.gd")
+const TouchControls = preload("res://scripts/ui/touch_controls.gd")
 const FxPool = preload("res://scripts/fx/fx_pool.gd")
 const Juice = preload("res://scripts/fx/juice.gd")
 
@@ -352,6 +353,123 @@ func test_main_scene_title_then_game_over_flow() -> void:
 	main.player.take_damage(1000)
 	check(main.overlay.is_open() and main._over, "morte abre o fim de jogo")
 	main_script.skip_title = true
+	root.remove_child(main)
+	main.free()
+	main_script.skip_title = false
+
+
+# --- Controles de toque (T-005) --------------------------------------------
+
+func _touch_event(pressed: bool, pos: Vector2, index: int = 0) -> InputEventScreenTouch:
+	var ev := InputEventScreenTouch.new()
+	ev.index = index
+	ev.pressed = pressed
+	ev.position = pos
+	return ev
+
+
+func _drag_event(pos: Vector2, index: int = 0) -> InputEventScreenDrag:
+	var ev := InputEventScreenDrag.new()
+	ev.index = index
+	ev.position = pos
+	return ev
+
+
+func test_stick_axis_math_and_deadzone() -> void:
+	var r := TouchControls.STICK_RADIUS
+	var dz := TouchControls.DEADZONE
+	check(TouchControls.axis_from_offset(Vector2(r * 0.1, 0), r, dz) == Vector2.ZERO, "dentro da zona morta = zero")
+	check(TouchControls.axis_from_offset(Vector2(r, 0), r, dz).is_equal_approx(Vector2.RIGHT), "borda = força 1")
+	check(TouchControls.axis_from_offset(Vector2(r * 5, 0), r, dz).is_equal_approx(Vector2.RIGHT), "além da borda é limitado a 1")
+	check(TouchControls.axis_from_offset(Vector2(0, -r * 0.5), r, dz).is_equal_approx(Vector2(0, -0.5)), "meia força para cima")
+
+
+func test_virtual_stick_drives_move_actions_with_multitouch() -> void:
+	var touch := TouchControls.new()
+	root.add_child(touch)
+	touch.show_controls()
+	var c := touch.stick_center
+	touch._input(_touch_event(true, c + Vector2(TouchControls.STICK_RADIUS, 0)))
+	check(is_equal_approx(Input.get_axis("move_left", "move_right"), 1.0), "empurrar para a direita = eixo x 1")
+	touch._input(_drag_event(c + Vector2(0, TouchControls.STICK_RADIUS)))
+	check(is_equal_approx(Input.get_axis("move_up", "move_down"), 1.0) and Input.get_axis("move_left", "move_right") == 0.0, "arrastar para baixo = y 1, x 0")
+	touch._input(_touch_event(true, c + Vector2(-500, -500), 1))  # outro dedo, longe: ignorado
+	touch._input(_drag_event(c + Vector2(-500, -500), 1))
+	check(is_equal_approx(Input.get_axis("move_up", "move_down"), 1.0), "outro dedo não mexe no joystick")
+	touch._input(_touch_event(false, c, 1))
+	check(is_equal_approx(Input.get_axis("move_up", "move_down"), 1.0), "soltar o outro dedo não solta o joystick")
+	touch._input(_touch_event(false, c, 0))
+	check(Input.get_vector("move_left", "move_right", "move_up", "move_down") == Vector2.ZERO, "soltar zera os eixos")
+	root.remove_child(touch)
+	touch.free()
+
+
+func test_touch_stick_moves_player_nudge() -> void:
+	var touch := TouchControls.new()
+	var clock := LoopClock.new()
+	var player := Player.new()
+	root.add_child(touch)
+	root.add_child(player)
+	touch.show_controls()
+	player.setup(clock, Simulator.bake(Plan.new(2), 300.0))
+	touch._input(_touch_event(true, touch.stick_center + Vector2(TouchControls.STICK_RADIUS, 0)))
+	for i in 30:
+		player._physics_process(1.0 / 60.0)
+	check(player.nudge.x > 10.0, "desvio do jogador vem do joystick (nudge.x = %.1f)" % player.nudge.x)
+	touch._input(_touch_event(false, touch.stick_center))
+	root.remove_child(touch)
+	root.remove_child(player)
+	touch.free()
+	player.free()
+	clock.free()
+
+
+func test_pulse_button_emits_and_shows_cooldown() -> void:
+	var touch := TouchControls.new()
+	root.add_child(touch)
+	var presses := [0]
+	touch.pulse_pressed.connect(func(): presses[0] += 1)
+	touch._pulse_button.pressed.emit()
+	check(presses[0] == 1, "botão de pulso emite sinal")
+	touch.set_pulse_cooldown(7.2)
+	check(touch._pulse_button.disabled and touch._pulse_button.text == "8s", "recarga desabilita e mostra segundos")
+	touch.set_pulse_cooldown(0.0)
+	check(not touch._pulse_button.disabled and touch._pulse_button.text == "Pulso", "pronto de novo")
+	root.remove_child(touch)
+	touch.free()
+
+
+func test_planner_rotate_mode_rotates_instead_of_assigning() -> void:
+	var plan := Plan.new()
+	plan.set_slot(1, Timeline.Action.SPEAR, Vector2.RIGHT)
+	var ui := PlannerUI.new()
+	root.add_child(ui)
+	ui.setup(plan, null)
+	ui.selected_action = Timeline.Action.DASH
+	ui.rotate_mode = true
+	ui._assign(1)
+	check(plan.actions[1] == Timeline.Action.SPEAR, "modo girar não troca a ação")
+	check(plan.dirs[1].is_equal_approx(Vector2.from_angle(PI / 4.0)), "gira 45° por toque")
+	ui.rotate_mode = false
+	ui._assign(1)
+	check(plan.actions[1] == Timeline.Action.DASH, "fora do modo girar, atribui")
+	root.remove_child(ui)
+	ui.free()
+
+
+func test_main_pulse_requires_running_and_has_cooldown() -> void:
+	var main_script: GDScript = load("res://scripts/main.gd")
+	main_script.skip_title = true
+	var main: Node2D = (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	root.add_child(main)
+	main._try_pulse()
+	check(main._pulse_cd == 0.0, "pulso não dispara no planejamento")
+	main._start()
+	main._try_pulse()
+	check(main._pulse_cd == main.PULSE_COOLDOWN, "pulso dispara em execução")
+	main._pulse_cd = 5.0
+	main._try_pulse()
+	check(main._pulse_cd == 5.0, "em recarga, ignora")
 	root.remove_child(main)
 	main.free()
 	main_script.skip_title = false
