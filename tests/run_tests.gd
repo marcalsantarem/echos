@@ -358,6 +358,42 @@ func test_main_scene_title_then_game_over_flow() -> void:
 	main_script.skip_title = false
 
 
+# --- PWA (T-006) -----------------------------------------------------------
+
+func _png_size(path: String) -> Vector2i:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null or f.get_length() < 24:
+		return Vector2i.ZERO
+	var magic := f.get_buffer(8)
+	f.big_endian = true
+	f.seek(16)  # IHDR: largura e altura (32 bits, big-endian)
+	var size := Vector2i(f.get_32(), f.get_32())
+	return size if magic == PackedByteArray([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) else Vector2i.ZERO
+
+
+func test_pwa_manifest_and_icons_are_consistent() -> void:
+	var dir := ProjectSettings.globalize_path("res://web/pwa/")
+	var manifest: Variant = JSON.parse_string(FileAccess.get_file_as_string(dir + "manifest.webmanifest"))
+	check(manifest is Dictionary, "manifesto é um JSON válido")
+	if not manifest is Dictionary:
+		return
+	check(manifest.get("name") == "Echo Blade" and manifest.get("start_url") == "./", "nome e start_url")
+	check(["standalone", "fullscreen"].has(manifest.get("display")), "display instalável")
+	var has_maskable := false
+	var has_512 := false
+	for icon in manifest.get("icons", []):
+		var size := _png_size(dir + String(icon["src"]))
+		var declared := String(icon["sizes"]).split("x")
+		check(size != Vector2i.ZERO and size == Vector2i(int(declared[0]), int(declared[1])), "%s existe e tem o tamanho declarado %s" % [icon["src"], icon["sizes"]])
+		has_512 = has_512 or icon["sizes"] == "512x512"
+		has_maskable = has_maskable or icon.get("purpose", "") == "maskable"
+	check(has_512 and has_maskable, "tem ícone 512x512 e um maskable")
+	check(_png_size(dir + "apple-touch-icon-180.png") == Vector2i(180, 180), "apple-touch-icon 180x180")
+	check(FileAccess.file_exists(dir + "favicon.ico"), "favicon.ico existe")
+	var shell := FileAccess.get_file_as_string(ProjectSettings.globalize_path("res://web/shell.html"))
+	check(shell.contains('rel="manifest"') and shell.contains("apple-touch-icon") and shell.contains("/*ECHOS_BUILD*/"), "shell referencia manifesto, ícones e marcador do build")
+
+
 # --- Controles de toque (T-005) --------------------------------------------
 
 func _touch_event(pressed: bool, pos: Vector2, index: int = 0) -> InputEventScreenTouch:

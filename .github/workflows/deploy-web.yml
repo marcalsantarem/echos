@@ -83,6 +83,9 @@ jobs:
           test -s build/web/index.html
           test -s build/web/index.wasm
           test -s build/web/index.pck
+          # Manifesto e ícones do app (o export não copia extras de web/).
+          bash web/copy_pwa.sh build/web
+          test -s build/web/manifest.webmanifest
           # Versão/build injetados no HTML (GITHUB_SHA, GITHUB_REF_NAME, GITHUB_RUN_NUMBER).
           bash web/inject_build.sh build/web
           du -ah build/web | sort -h

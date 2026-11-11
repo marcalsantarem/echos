@@ -7,6 +7,11 @@ Build e deploy rodam no GitHub Actions (`.github/workflows/deploy-web.yml`); o N
 2. Push em `dev` -> CI: baixa Godot 4.7.2 e template `web_nothreads` (SHA512 conferido, com cache), importa, roda `tests/run_tests.gd`, exporta o preset "Web", injeta `window.ECHOS_BUILD` (sha, branch, data, run) e publica em `https://dev--echosgame.netlify.app`.
 3. Release: o dono pede o PR `dev` -> `main`; após o merge, `git tag v0.x.0 && git push origin v0.x.0` na `main` publica `https://v0-x-0--echosgame.netlify.app` e cria a GitHub Release com o zip. Tag nunca vai para produção.
 
+## PWA
+- Manifesto e ícones em `web/pwa/` (pasta com `.gdignore`, fora do import e do pck). Ícones originais gerados por `python web/pwa/make_icons.py` (registrado em `assets/LICENSES.md`).
+- O CI roda `web/copy_pwa.sh build/web` depois do export: copia manifesto e ícones e sobrescreve `index.icon.png`/`index.apple-touch-icon.png`. Sem service worker (não há modo offline).
+- No iPhone: Safari > Compartilhar > Adicionar à Tela de Início. Falta confirmar num aparelho real.
+
 ## Local
 - Export: `& $g --headless --path . --export-release "Web" build/web/index.html` (templates em `%APPDATA%\Godot\export_templates\4.7.2.stable`). `build/` é ignorado pelo git.
 - Servir: `python -m http.server -d build/web` e abrir `http://localhost:8000`.

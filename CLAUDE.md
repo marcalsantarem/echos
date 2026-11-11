@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Echo Blade: top-down roguelike in Godot 4.7 (GDScript), single circular arena, neon/dark "cyber-zen dojo" look. The player does NOT steer in real time: they fill a bottom timeline of **0.5 s slots** (starts at 6 = 3 s) with actions, then the character **executes that plan in an endless loop** while the player only nudges small deviations (WASD) and fires one long-cooldown support skill (pulse, Space). Every 15 s the arena shrinks and the loop grows +1 s (2 empty slots to fill). Enemies (geometric shapes) spawn on the arena edge in exponentially growing waves. Walls cost health.
 
-Not built yet (from the concept doc): roguelike mutations (Loop Espelhado, Eco Autônomo, Sobrecarga de Lâmina), upgrades (Fantasma, Lâmina Vampírica, Overclock Temporal), hit-stop/screen shake/ghost-trail VFX, bosses, replay/GIF export (9:16), web/mobile export. `EchoPlayer` (ghost replaying a Timeline) exists as the base for "Eco Autônomo" but Main does not spawn it.
+Not built yet (from the concept doc): roguelike mutations (Loop Espelhado, Eco Autônomo, Sobrecarga de Lâmina), upgrades (Fantasma, Lâmina Vampírica, Overclock Temporal), bosses, replay/GIF export (9:16), audio, native mobile export. `EchoPlayer` (ghost replaying a Timeline) exists as the base for "Eco Autônomo" but Main does not spawn it.
 
 ## Workflow (adopted by the owner, 2026-11-10; details in `docs/git-workflow.md`)
 
@@ -39,6 +39,9 @@ Data flow: **Plan** (what the player authored) -> `Simulator.bake` -> **Timeline
 - **LoopClock** (`scripts/timeline/loop_clock.gd`): single source of truth for time. Counts physics ticks, has `process_physics_priority = 100` so it advances *after* the player/echoes read `clock.frame` in the same tick. Loop length changes only on wrap via `request_loop_frames()`; `reset()` is for the (stopped) planning phase. Never index a timeline with wall-clock time.
 - **PlayerController** (`scripts/player/player_controller.gd`): a plain `Node2D` (no physics body) that sets `position` from `baked.position_at(clock.frame) + nudge` and fires events via `Combat.perform` once per frame (guards against re-firing while the clock is stopped).
 - **Main** (`scripts/main.gd`): planning phase (clock stopped, edits re-bake immediately) -> Enter starts execution -> edits during execution set `_dirty` and are re-baked on `loop_wrapped`. Escalation every 15 s shrinks the arena, adds slots and marks dirty. `PlannerUI` (`scripts/ui/planner_ui.gd`) and `OverlayUI` (`scripts/ui/overlay_ui.gd`: title "toque para começar" and game over, click/tap/Enter confirms, 700 ms lock on game over) are built entirely in code. `Main.skip_title` is a `static var` so "play again" (`reload_current_scene`) skips the title.
+- **Touch** (`scripts/ui/touch_controls.gd`): virtual stick presses the `move_*` InputMap actions (so the player code is input-agnostic) and a Pulse button; shown on touch devices or after the first touch. Planner has a "Girar slot" toggle instead of right-click.
+- **Juice** (`scripts/fx/`): `Juice` = directional shake of Main + 0.05 s hit-stop by pausing the tree (never `Engine.time_scale`; it has a cooldown and un-pauses on exit); `FxPool` = fixed pool of 12 `CPUParticles2D` for enemy shards. Enemies emit `died(enemy, by_player)`, WaveManager relays `enemy_killed`; Main batches same-tick kills (hit-stop only for 2+). Player trail is a preallocated ring buffer. Keep it allocation-free per frame.
+- **PWA**: `web/pwa/` (manifest, icons from `make_icons.py`, `.gdignore`), copied into the build by `web/copy_pwa.sh` in CI.
 - **Combat** (`scripts/combat/combat.gd`) is shared by player and echoes; `Projectile` is the pierce-3 spear. **WaveManager** spawns `Enemy` nodes on the edge (local offset from its own position), count = `base_count * growth_factor^(wave-1)` capped at `max_count`, next wave after `alive` hits 0 via `tree_exited`. Seed `wm.rng.seed` for deterministic tests.
 
 Conventions:
@@ -46,4 +49,4 @@ Conventions:
 - Scripts reference each other with `preload("res://...")` constants, not `class_name`, so headless runs don't depend on the editor's global class cache. Input actions are registered in code (`scripts/input_setup.gd`), not in `project.godot`.
 - GDScript warnings are treated as errors: avoid `:=` when the value is a `Variant` (annotate the type instead).
 
-Controls: click a slot to assign the selected action (keys 1-6 select it), right-click a slot to rotate its direction, "Direção" button sets the direction for new assignments, Enter executes, WASD nudges, Space pulse, R restarts.
+Controls: click/tap a slot to assign the selected action (keys 1-6 select it), right-click (or "Girar slot" mode on touch) rotates a slot's direction, "Direção" button sets the direction for new assignments, Enter/"Executar" starts, WASD or virtual stick nudges, Space or Pulse button, R or tap on game over restarts.
